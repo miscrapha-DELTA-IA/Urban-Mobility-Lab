@@ -90,8 +90,9 @@ def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
     """Generate a dependency-free interactive AOI editor, usable offline.
 
     The native canvas shows OSM road geometry embedded from the saved GraphML.
-    Background OSM tiles are OPTIONAL and require browser internet access.
-    Folium, a local web server, and remote JS libraries are not required.
+    Does not request map tiles or load remote scripts. Folium, a local web
+    server and internet access are not required. The OSM reference link opens
+    only when explicitly clicked.
     """
     xs = []
     ys = []
@@ -156,23 +157,22 @@ def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
 </style>
 </head>
 <body>
-<header><strong>URBAN MOBILITY LAB · PARNAÍBA</strong><small>Editor científico de área de estudo · mapa de ruas do seu GraphML</small></header>
+<header><strong>URBAN MOBILITY LAB · PARNAÍBA</strong><small>Editor científico de área de estudo · rede viária local, sem mapas externos</small></header>
 <div id="toolbar">
 <button id="draw" class="primary">Desenhar polígono</button>
 <button id="finish">Concluir</button>
 <button id="undo">Desfazer ponto</button>
 <button id="clear">Limpar</button>
 <button id="reset">Enquadrar cidade</button>
-<button id="tiles">Ocultar mapa online</button>
 <button id="export" class="primary">Exportar GeoJSON</button>
 <a id="osm" class="action" href="https://www.openstreetmap.org/" target="_blank" rel="noopener">Conferir no OSM</a>
 <span id="status">Iniciando editor…</span>
 </div>
 <div id="stage">
 <canvas id="map" aria-label="Mapa interativo das ruas de Parnaíba. Use os botões para definir um polígono."></canvas>
-<div id="hint"><strong>Instruções:</strong> arraste para mover, use a roda do mouse para ampliar. Clique em <strong>Desenhar polígono</strong> e marque ao menos 3 pontos. Inclua o Mirante e vias de aproximação. Depois: <strong>Concluir → Exportar GeoJSON</strong>.<br>As ruas funcionam sem internet; o mapa de fundo depende de conexão.</div>
+<div id="hint"><strong>Mapa vetorial offline:</strong> as linhas são as ruas do GraphML original. Arraste para mover e use a roda do mouse para ampliar. Para conferir nomes e pontos de referência, clique em <strong>Conferir no OSM</strong> (abre uma página externa apenas se você clicar).<br>Selecione <strong>Desenhar polígono</strong>, marque ao menos 3 pontos e inclua o Mirante e suas vias de acesso. Depois: <strong>Concluir → Exportar GeoJSON</strong>.</div>
 </div>
-<footer><strong>Natureza dos dados:</strong> ruas OSM, sem fluxo de veículos observado. Polígono manual para revisão, não limite urbano oficial. © OpenStreetMap contributors (ODbL); imagens de fundo © OpenStreetMap contributors. Nenhuma medição de tráfego é coletada por este editor.</footer>
+<footer><strong>Natureza dos dados:</strong> ruas OSM (© OpenStreetMap contributors, ODbL), sem fluxo de veículos observado. Polígono manual para revisão, não limite urbano oficial. Sem requisições de imagens, scripts ou fontes externas; o link de referência abre apenas por escolha do usuário.</footer>
 <script>
 "use strict";
 const roads=__ROADS_JSON__;
@@ -181,9 +181,8 @@ const canvas=document.getElementById("map");
 const ctx=canvas.getContext("2d");
 const stage=document.getElementById("stage");
 const statusEl=document.getElementById("status");
-const tileCache=new Map();
 let centerLon=(bounds[0]+bounds[2])/2,centerLat=(bounds[1]+bounds[3])/2;
-let zoom=12,drawMode=false,finished=false,points=[],showTiles=true;
+let zoom=12,drawMode=false,finished=false,points=[];
 let w=1,h=1,dragging=false,downX=0,downY=0,moved=false,scheduled=false;
 const R=Math.PI/180;
 function project(lon,lat,z){
@@ -217,32 +216,11 @@ function resize(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   schedule();
 }
-function renderTiles(){
-  if(!showTiles)return;
-  const c=project(centerLon,centerLat,zoom),n=Math.pow(2,zoom);
-  const minX=Math.floor((c.x-w/2)/256),maxX=Math.floor((c.x+w/2)/256);
-  const minY=Math.floor((c.y-h/2)/256),maxY=Math.floor((c.y+h/2)/256);
-  for(let ty=minY;ty<=maxY;ty++)for(let tx=minX;tx<=maxX;tx++){
-    if(ty<0||ty>=n)continue;
-    const xx=((tx%n)+n)%n,key=zoom+"/"+xx+"/"+ty;
-    let im=tileCache.get(key);
-    if(im===undefined){
-      im=new Image();im.onload=schedule;im.onerror=()=>{im.onerror=null};
-      im.src="https://tile.openstreetmap.org/"+key+".png";
-      tileCache.set(key,im);
-    }
-    if(im.complete&&im.naturalWidth){
-      ctx.drawImage(im,tx*256-c.x+w/2,ty*256-c.y+h/2,256,256);
-    }
-  }
-  if(tileCache.size>160)tileCache.clear();
-}
 function render(){
   scheduled=false;
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#eaf0f8";ctx.fillRect(0,0,w,h);
-  renderTiles();
-  ctx.strokeStyle=showTiles?"rgba(17,62,105,0.40)":"rgba(31,87,139,0.65)";
-  ctx.lineWidth=zoom>=14?1.3:.8;
+  ctx.strokeStyle="rgba(19,81,142,0.87)";
+  ctx.lineWidth=zoom>=14?1.6:1.0;
   ctx.beginPath();
   for(const road of roads){
     if(road.length<2)continue;
@@ -326,11 +304,6 @@ document.getElementById("clear").onclick=()=>{
   points=[];drawMode=false;finished=false;updateStatus("Seleção limpa.");schedule();
 };
 document.getElementById("reset").onclick=fit;
-document.getElementById("tiles").onclick=()=>{
-  showTiles=!showTiles;
-  document.getElementById("tiles").textContent=showTiles?"Ocultar mapa online":"Mostrar mapa online";
-  schedule();
-};
 document.getElementById("export").onclick=()=>{
   if(!finished||points.length<3)return;
   const ring=[...points,points[0]];

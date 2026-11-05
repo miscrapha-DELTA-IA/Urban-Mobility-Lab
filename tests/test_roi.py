@@ -83,4 +83,8 @@ def test_standalone_editor_writes_html_without_folium(tmp_path):
     assert "leaflet" not in html.lower()
     assert "folium" not in html.lower()
     assert "new Blob" in html
+    assert "tile.openstreetmap.org" not in html
+    assert "new Image()" not in html
+    assert "renderTiles" not in html
+    assert "Ocultar mapa online" not in html
 

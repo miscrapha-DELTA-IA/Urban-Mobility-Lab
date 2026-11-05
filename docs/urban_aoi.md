@@ -16,7 +16,7 @@ $python = ".\.venv\Scripts\python.exe"
 Start-Process "reports\parnaiba_aoi_editor.html"
 ```
 
-The editor is a self-contained local HTML page with the OSM roads embedded from GraphML. It does **not** use Folium or download any JavaScript dependencies. Internet access is optional for the OpenStreetMap background tiles; the road geometry, panning/zooming, selection and GeoJSON export work offline.
+The editor is a self-contained local HTML page with the OSM roads embedded from GraphML. It does **not** use Folium, external image tiles, or JavaScript dependencies. The road geometry, panning/zooming, selection and GeoJSON export work completely offline. An optional **Conferir no OSM** hyperlink opens the current view on the external site only when clicked. The editor itself makes no external requests.
 
 If an earlier Folium installation failed with Windows `[Errno 22] Invalid argument`, **do not reinstall it**: simply pull the revised branch and run `python -m urban_mobility_lab.roi editor`. The generated HTML does not require a local server.
 
@@ -73,3 +73,7 @@ This outputs a **road-network map**, not estimated traffic volumes. Inspect the 
 - [ ] Distinguish mapped topology, simulated demand and independent traffic counts.
 
 **Scientific disclaimer:** This process builds only a candidate computational road network. It does not validate traffic flow, accident risk, real-world travel time or causal effects.
+
+## Windows HTTP 403 tile errors (legacy HTML)
+
+The earlier editor requested images directly from the OpenStreetMap public tile server and some Windows/browser environments received HTTP 403 images. The current editor **does not request any tiles**. After pulling the updated branch, regenerate the HTML with `python -m urban_mobility_lab.roi editor` and reopen the regenerated local file. Do not reuse the old tab or HTML. The scientific GraphML is unchanged.
