@@ -21,6 +21,8 @@ Thumbs.db
 data/raw/**
 data/processed/**
 data/networks/**
+data/sumo/**
+!data/sumo/.gitkeep
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/networks/.gitkeep

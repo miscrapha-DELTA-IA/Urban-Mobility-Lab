@@ -16,13 +16,15 @@
 - [x] Grafo municipal de referência com SHA-256: `05fb88f7a23f2f9865c9c2656f1a69937bf087776e94cc593728390db240b5d6`
 - [x] Ferramenta de criação e recorte manual de AOI desenvolvida
 - [x] Decisão inicial: utilizar toda a rede municipal armazenada, sem recorte (ver `docs/full_city_scope.md`)
-- [ ] Executar relatório de escopo municipal completo no Windows com `python -m urban_mobility_lab.scope`
+- [x] Relatório de escopo municipal integral executado no Windows: hash de referência preservado em 2026-11-05
 - [ ] Confirmar limite municipal cartográfico e a cobertura da rede OSM
 - [ ] Reservar AOIs menores (como MIRANTE-01) para análises complementares
 
 ## Etapa 4 — simulação
-- [ ] Instalar e configurar SUMO
-- [ ] Obter extrato bruto OSM XML correspondente e converter com `netconvert`; GraphML não é entrada direta
+- [x] Ferramentas de diagnóstico, planejamento, extração e conversão OSM→SUMO implementadas (CI pendente)
+- [ ] Instalar e configurar SUMO no Windows do pesquisador
+- [ ] Executar extração OSM XML municipal em 4 partes e documentar data e SHA-256
+- [ ] Executar netconvert e auditar a nova rede SUMO; GraphML não é entrada direta
 - [ ] Comparar conectividade e cobertura da rede SUMO com a rede OSMnx
 - [ ] Definir três cenários de demanda **sintética**, sementes e parâmetros
 - [ ] Executar e documentar resultados reproduzíveis
