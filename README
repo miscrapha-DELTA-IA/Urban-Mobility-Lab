@@ -1,0 +1,17 @@
+# Urban Mobility Lab
+
+**An open-source scientific framework for urban mobility simulation, predictive modeling, and digital twin validation.**
+
+Urban Mobility Lab is a research-oriented platform designed to reconstruct, simulate, analyze, and predict urban traffic dynamics through computational modeling, geospatial data, and artificial intelligence.
+
+The project integrates road network analysis, microscopic traffic simulation, machine learning, and observational data to investigate traffic flow, congestion, travel times, road safety, and the effects of urban interventions.
+
+Its architecture is designed to support reproducible scientific experiments, scenario-based simulations, and the calibration and validation of digital twins using real-world traffic measurements.
+
+**Initial study area:** Parnaíba, Piauí, Brazil.
+
+**Core technologies:** Python, OpenStreetMap, OSMnx, SUMO, NetworkX, GeoPandas, PostGIS, and machine learning frameworks.
+
+**Long-term research directions:** Intelligent transportation systems, sustainable mobility, urban planning, transportation equity, and the relationship between commuting conditions and human well-being.
+
+The project is under active development. Simulation outputs are not assumed to represent observed traffic conditions until appropriate calibration and independent validation have been performed.
