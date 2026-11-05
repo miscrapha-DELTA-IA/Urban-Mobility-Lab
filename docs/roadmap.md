@@ -21,9 +21,9 @@
 - [ ] Reservar AOIs menores (como MIRANTE-01) para análises complementares
 
 ## Etapa 4 — simulação
-- [x] Ferramentas de diagnóstico, planejamento, extração e conversão OSM→SUMO implementadas (CI pendente)
-- [ ] Instalar e configurar SUMO no Windows do pesquisador
-- [ ] Executar extração OSM XML municipal em 4 partes e documentar data e SHA-256
+- [x] Ferramentas de diagnóstico, planejamento, extração e conversão OSM→SUMO implementadas; recuperação de download por faixas e manifesto adicionada
+- [x] SUMO 1.28.0 instalado no Windows e identificado em `C:\Program Files (x86)\SUMO`
+- [ ] Extrair vias OSM XML do domínio municipal em até 8 faixas sequenciais e registrar SHA-256 por faixa (Overpass 504 em tentativa de 4 faixas)
 - [ ] Executar netconvert e auditar a nova rede SUMO; GraphML não é entrada direta
 - [ ] Comparar conectividade e cobertura da rede SUMO com a rede OSMnx
 - [ ] Definir três cenários de demanda **sintética**, sementes e parâmetros

@@ -60,13 +60,29 @@ Salva `reports/parnaiba_sumo_import.json` e mostra bbox, hash e nomes dos quatro
 
 ## 3. Baixar OSM XML em partes (consulta externa explícita)
 
-**Só depois** de confirmar versão do SUMO, estado do serviço Overpass e a bbox:
+**Checkpoint em Windows 5.1, 2026-11-05:** instalação `C:\Program Files (x86)\SUMO`, `netconvert 1.28.0`, aprovada pelo `doctor`. A primeira consulta ampla ao Overpass retornou **HTTP 504 Gateway Timeout** e não gerou nenhum OSM XML; o erro não ocorreu na instalação nem no GraphML.
+
+A versão revisada usa um procedimento **estritamente sequencial** e retoma downloads parciais:
+
+- a caixa geográfica de estudo é dividida em **8 faixas de oeste a leste** (configurável com `--tiles 1..16`);
+- cada consulta do `osmGet.py` recebe somente objetos com etiqueta OSM `highway` e seus nós/relações relevantes; não solicita lojas, prédios ou outros POIs;
+- cada arquivo XML é verificado quanto à estrutura e presença de vias antes de ser promovido de diretório temporário para a coleção aprovada;
+- o arquivo `data/raw/osm/parnaiba_full_8.download_manifest.json` registra os hashes SHA-256, limites geográficos e momento de download de **cada** faixa;
+- em caso de HTTP 504 ou interrupção, as faixas anteriores são **preservadas**. Executar novamente o mesmo comando **posteriormente**, com a mesma configuração, retoma apenas os segmentos faltantes. Nenhuma faixa aprovada é sobrescrita;
+- os arquivos são protegidos contra mistura de esquemas, alteração de SHA-256 e conversão com download incompleto.
+
+Comando padrão, **uma única execução por tentativa**:
 
 ```powershell
+& $python -m urban_mobility_lab.sumo_bridge plan
 & $python -m urban_mobility_lab.sumo_bridge download --confirm-download
 ```
 
-O utilitário usa `osmGet.py --bbox=oeste,sul,leste,norte --tiles 4` e tenta obter quatro arquivos independentes no diretório `data/raw/osm`. O download pode falhar por limites ou indisponibilidade do Overpass; respeite os limites de uso, não dispare requisições paralelas e não repita em loop. Se o download falhar, os arquivos parciais são preservados para inspeção. Nunca declarar sucesso com tiles vazias ou ausentes.
+**Importante:** os 8 arquivos XML não são uma fotografia única e atômica do OSM. Cada download pode ter uma data diferente e o relatório deve explicitar essa limitação. Se a exigência futura for uma versão histórica uniforme, escolher um extrato regional datado (PBF) e recortá-lo localmente, em vez de consultar o Overpass para cada parte.
+
+Em caso de outro HTTP 504: não execute em loop nem faça dezenas de requisições. Aguarde a recuperação do Overpass, verifique o manifesto local e só então retome. HTTP 429 indica limitação de requisições e deve ser respeitado. Uma alternativa com arquivo regional encontra-se em https://download.geofabrik.de/south-america/brazil.html ; não baixar o Brasil inteiro desnecessariamente.
+
+O modo antigo de 4 faixas permanece acessível por `--tiles 4`, mas **não deve ser misturado** ao novo padrão de 8 faixas no mesmo experimento. O novo modo usa um manifesto próprio.
 
 ## 4. Converter com netconvert (sem gerar veículos)
 
@@ -78,7 +94,7 @@ O utilitário usa `osmGet.py --bbox=oeste,sul,leste,norte --tiles 4` e tenta obt
 Saídas:
 - `data/sumo/parnaiba_full.net.xml` — topologia SUMO derivada dos arquivos OSM XML;
 - `reports/parnaiba_sumo_import.json` — hashes e contagens estruturais;
-- arquivos OSM XML brutos permanecem em `data/raw/osm/` e não são enviados ao GitHub.
+- os 8 arquivos OSM XML brutos e o manifesto permanecem em `data/raw/osm/` e não são enviados ao GitHub.
 
 O comando conserva apenas vias que permitem a classe SUMO `passenger` e interpreta faixas de conversão quando disponíveis no OSM. **Isso não reproduz nem valida automaticamente os tempos reais dos semáforos.** A escolha do filtro é uma primeira hipótese modelística (nesta etapa, não inclui toda a dinâmica de motos, ônibus, bicicletas e pedestres).
 
@@ -104,3 +120,7 @@ Referências: https://eclipse.dev/sumo/docs/Networks/Import/OpenStreetMap.html e
 ### Correção de argumentos negativos (Windows, 2026-11-05)
 
 A primeira tentativa falhou **antes de fazer requisições ao Overpass**. A longitude negativa foi fornecida como argumento separado (`--bbox -41.846...`) e o `argparse` respondeu `argument -b/--bbox: expected one argument`. A versão atual usa a forma `--bbox=-41.8464173,-3.1032097,-41.6627259,-2.8057393`, validada por testes offline. O erro não implica que a base OSM tenha sido baixada nem que a conversão tenha iniciado. Não foi preciso reinstalar o SUMO 1.28.0.
+
+## Testes sem acesso à internet
+
+O teste de descoberta de SUMO foi isolado do registro do Windows, PATH e instalações reais, pois a versão anterior falhava no computador com o programa instalado e passava no Linux CI. Os testes de retoma usam um importador OSM simulado localmente: forçam falha no segundo tile e confirmam que os tiles já válidos não são baixados novamente, que arquivos modificados são rejeitados e que o comando contém o filtro de vias. Esses testes **não certificam** a disponibilidade da API Overpass nem a fidelidade da geometria viária brasileira.
