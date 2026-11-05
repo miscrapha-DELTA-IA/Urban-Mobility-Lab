@@ -15,9 +15,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+viz = ["matplotlib>=3.8,<4.0"]
 
 [project.scripts]
 uml-import-network = "urban_mobility_lab.ingestion:main"
+uml-audit-network = "urban_mobility_lab.audit:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
