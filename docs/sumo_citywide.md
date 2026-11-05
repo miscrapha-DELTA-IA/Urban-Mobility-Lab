@@ -30,14 +30,25 @@ $python = ".\.venv\Scripts\python.exe"
 & $python -m urban_mobility_lab.sumo_bridge doctor
 ```
 
-Se `sumo_detected` for `false`, tente localizar a pasta `bin\netconvert.exe` e `tools\osmGet.py` (geralmente em `C:\Program Files (x86)\Eclipse\Sumo`) e informe:
+Se `sumo_detected` for `false`, observe que o MSI 1.28.0 frequentemente instala em `C:\\Program Files\\sumo-1.28.0`, nao na pasta `Eclipse\\Sumo`. O laboratorio agora procura esses diretorios versionados e a variavel `SUMO_HOME` persistida no Windows.
+
+Localize o SUMO com PowerShell sem varrer o disco inteiro:
 
 ```powershell
-$env:SUMO_HOME = "C:\Program Files (x86)\Eclipse\Sumo"
-& $python -m urban_mobility_lab.sumo_bridge doctor
+$roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
+Get-ChildItem -Path $roots -Directory -ErrorAction SilentlyContinue |
+    Where-Object Name -like 'sumo*' |
+    Select-Object FullName
 ```
 
-Ajuste o caminho ao encontrado na sua máquina. O diagnóstico não faz chamadas externas.
+Confirme a presenca de `bin\\netconvert.exe` e `tools\\osmGet.py` dentro do diretorio encontrado. Por exemplo, somente se existir:
+
+```powershell
+$env:SUMO_HOME = 'C:\\Program Files\\sumo-1.28.0'
+& $python -m urban_mobility_lab.sumo_bridge doctor --sumo-home $env:SUMO_HOME
+```
+
+O MSI pode atualizar as variaveis de ambiente sem atualizar o PowerShell ja aberto; uma nova janela tambem ajuda. Nao e necessario reinstalar o SUMO.
 
 ## 2. Gerar plano (sem fazer download)
 

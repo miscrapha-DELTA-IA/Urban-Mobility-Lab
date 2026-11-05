@@ -84,3 +84,33 @@ def test_doctor_resolves_synthetic_binary_layout(tmp_path):
     (home / "bin" / executable).write_text("fake")
     (home / "tools" / "osmGet.py").write_text("fake")
     assert resolve_sumo_home(str(home)) == home.resolve()
+
+def test_auto_discover_versioned_msi_installation(tmp_path, monkeypatch):
+    """MSI installs to Program Files/sumo-VERSION, not always Eclipse/Sumo."""
+    import os
+    monkeypatch.setenv("ProgramFiles", str(tmp_path))
+    monkeypatch.setenv("ProgramFiles(x86)", str(tmp_path / "x86"))
+    monkeypatch.delenv("SUMO_HOME", raising=False)
+    home = tmp_path / "sumo-1.28.0"
+    (home / "bin").mkdir(parents=True)
+    (home / "tools").mkdir()
+    exe = "netconvert.exe" if os.name == "nt" else "netconvert"
+    (home / "bin" / exe).write_text("test only")
+    (home / "tools" / "osmGet.py").write_text("test only")
+    assert resolve_sumo_home() == home.resolve()
+    assert resolve_sumo_home(str(home / "bin")) == home.resolve()
+
+def test_doctor_does_not_require_executable_to_run(tmp_path):
+    """Detection works even if probing a fake test executable fails."""
+    from urban_mobility_lab.sumo_bridge import check_sumo
+    import os
+    home = tmp_path / "sumo-1.28.0"
+    (home / "bin").mkdir(parents=True)
+    (home / "tools").mkdir()
+    exe = "netconvert.exe" if os.name == "nt" else "netconvert"
+    (home / "bin" / exe).write_text("test only")
+    (home / "tools" / "osmGet.py").write_text("test only")
+    result = check_sumo(str(home))
+    assert result["sumo_detected"] is True
+    assert result["sumo_home"] == str(home.resolve())
+    assert result["netconvert_version"] in ("unavailable", None)

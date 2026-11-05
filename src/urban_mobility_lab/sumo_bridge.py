@@ -66,35 +66,124 @@ def expected_osm_files(folder: Path, prefix: str, tiles: int) -> list[Path]:
     return [folder / f"{prefix}{i}_{tiles}.osm.xml" for i in range(tiles)]
 
 
-def resolve_sumo_home(override: str | None = None) -> Path | None:
-    """Resolve Windows zip/MSI or PATH installation without modifying settings."""
-    possible = [
-        override,
-        os.environ.get("SUMO_HOME"),
-        r"C:\Program Files (x86)\Eclipse\Sumo",
-        r"C:\Program Files\Eclipse\Sumo",
-    ]
-    found = shutil.which("netconvert") or shutil.which("netconvert.exe")
+def _windows_sumo_environment() -> list[str]:
+    """Read persisted SUMO_HOME after MSI installation in an older shell.
+
+    The installer may update the Windows registry without refreshing a
+    PowerShell session that was already open before installation.
+    """
+    if os.name != "nt":
+        return []
+    try:
+        import winreg
+    except ImportError:
+        return []
+    candidates = []
+    for hive, key_path in (
+        (winreg.HKEY_CURRENT_USER, "Environment"),
+        (winreg.HKEY_LOCAL_MACHINE,
+         r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+    ):
+        try:
+            with winreg.OpenKey(hive, key_path) as key:
+                value, _ = winreg.QueryValueEx(key, "SUMO_HOME")
+                if value:
+                    candidates.append(os.path.expandvars(str(value)))
+        except (FileNotFoundError, OSError):
+            pass
+    return candidates
+
+
+def _sumo_candidate_homes(override: str | None = None) -> list[Path]:
+    """Collect likely locations without crawling entire disk drives."""
+    candidates: list[str] = []
+    for entry in (override, os.environ.get("SUMO_HOME")):
+        if entry:
+            candidates.append(entry)
+    candidates.extend(_windows_sumo_environment())
+
+    for k, fallback in (
+        ("ProgramFiles", r"C:\Program Files"),
+        ("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+    ):
+        root = Path(os.environ.get(k, fallback))
+        candidates.extend(str(root / folder) for folder in (
+            "sumo-1.28.0", "sumo", "SUMO",
+            "Eclipse/Sumo", "Eclipse/SUMO",
+        ))
+        # Match versioned MSI locations such as sumo-1.28.0 / sumo-1.29.0.
+        if root.is_dir():
+            candidates.extend(
+                str(item) for item in root.glob("sumo-*") if item.is_dir()
+            )
+            eclipse = root / "Eclipse"
+            if eclipse.is_dir():
+                candidates.extend(
+                    str(item) for item in eclipse.glob("*umo*") if item.is_dir()
+                )
+
+    local_programs = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs"
+    if local_programs.is_dir():
+        candidates.extend(
+            str(item) for item in local_programs.glob("*umo*") if item.is_dir()
+        )
+
+    found = shutil.which("netconvert.exe") or shutil.which("netconvert")
     if found:
-        possible.append(str(Path(found).resolve().parent.parent))
-    for item in possible:
-        if not item:
-            continue
-        home = Path(item).expanduser()
-        exe = home / "bin" / ("netconvert.exe" if os.name == "nt" else "netconvert")
-        if exe.is_file() and (home / "tools" / "osmGet.py").is_file():
+        candidates.append(str(Path(found).resolve().parent.parent))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for item in candidates:
+        home = Path(os.path.expandvars(item)).expanduser()
+        if home.name.lower() == "bin":
+            home = home.parent
+        key = str(home).casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(home)
+    return unique
+
+
+def resolve_sumo_home(override: str | None = None) -> Path | None:
+    """Locate both SUMO executables and bundled scripts, without writes."""
+    executable = "netconvert.exe" if os.name == "nt" else "netconvert"
+    for home in _sumo_candidate_homes(override):
+        if (
+            (home / "bin" / executable).is_file()
+            and (home / "tools" / "osmGet.py").is_file()
+        ):
             return home.resolve()
     return None
 
 
 def check_sumo(override: str | None = None) -> dict:
     home = resolve_sumo_home(override)
+    executable = "netconvert.exe" if os.name == "nt" else "netconvert"
+    netconvert = home / "bin" / executable if home else None
+    version = None
+    if netconvert:
+        try:
+            completed = subprocess.run(
+                [str(netconvert), "--version"],
+                capture_output=True, text=True, timeout=12,
+                check=True,
+            )
+            lines = (completed.stdout or completed.stderr).strip().splitlines()
+            version = lines[0] if lines else None
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            version = "unavailable"
     return {
         "sumo_detected": home is not None,
         "sumo_home": str(home) if home else None,
-        "netconvert": str(home / "bin" / ("netconvert.exe" if os.name == "nt" else "netconvert")) if home else None,
+        "netconvert": str(netconvert) if netconvert else None,
+        "netconvert_version": version,
         "osm_get_script": str(home / "tools" / "osmGet.py") if home else None,
-        "suggestion": "Install Eclipse SUMO 1.28.0 (winget install --name sumo) or set SUMO_HOME to your extracted SUMO directory." if not home else "SUMO tools located.",
+        "suggestion": (
+            "SUMO tools located."
+            if home
+            else "SUMO not found. Locate bin/netconvert.exe and tools/osmGet.py; pass --sumo-home followed by their parent directory."
+        ),
     }
 
 
