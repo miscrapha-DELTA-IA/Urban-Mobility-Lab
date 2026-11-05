@@ -175,7 +175,7 @@ def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
 </div>
 <div id="stage">
 <canvas id="map" aria-label="Mapa interativo das ruas de Parnaíba. Use os botões para definir um polígono."></canvas>
-<div id="hint"><strong>Mapa vetorial offline:</strong> as linhas são as ruas do GraphML original. Arraste para mover e use a roda do mouse para ampliar. Para conferir nomes e pontos de referência, clique em <strong>Conferir no OSM</strong> (abre uma página externa apenas se você clicar).<br>Selecione <strong>Desenhar polígono</strong>, marque ao menos 3 pontos e inclua o Mirante e suas vias de acesso. Depois: <strong>Concluir → Exportar GeoJSON</strong>.</div>
+<div id="hint"><strong>Mapa vetorial offline:</strong> as linhas são as ruas do GraphML original. Arraste para mover e use a roda do mouse para ampliar. Para conferir nomes e pontos de referência, clique em <strong>Conferir no OSM</strong> (abre uma página externa apenas se você clicar).<br>Selecione <strong>Desenhar polígono</strong>, marque ao menos 3 pontos <strong>em ordem ao redor do perímetro, sem cruzar as linhas</strong>, incluindo o Mirante e vias de acesso. Depois: <strong>Concluir → Exportar GeoJSON</strong>.</div>
 </div>
 <footer><strong>Natureza dos dados:</strong> ruas OSM (© OpenStreetMap contributors, ODbL), sem fluxo de veículos observado. Polígono manual para revisão, não limite urbano oficial. Sem requisições de imagens, scripts ou fontes externas; o link de referência abre apenas por escolha do usuário.</footer>
 <script>
@@ -205,6 +205,51 @@ function px(lon,lat){
 function geo(x,y){
   const c=project(centerLon,centerLat,zoom);
   return unproject(c.x+x-w/2,c.y+y-h/2,zoom);
+}
+function orientation(a,b,c){
+  return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+}
+function withinSegment(a,b,p){
+  const eps=1e-12;
+  return p[0]>=Math.min(a[0],b[0])-eps&&p[0]<=Math.max(a[0],b[0])+eps&&
+         p[1]>=Math.min(a[1],b[1])-eps&&p[1]<=Math.max(a[1],b[1])+eps;
+}
+function segmentsCross(a,b,c,d){
+  const eps=1e-12;
+  const o1=orientation(a,b,c),o2=orientation(a,b,d);
+  const o3=orientation(c,d,a),o4=orientation(c,d,b);
+  if(((o1>eps&&o2 < -eps)||(o1 < -eps&&o2>eps))&&
+     ((o3>eps&&o4 < -eps)||(o3 < -eps&&o4>eps)))return true;
+  if(Math.abs(o1)<=eps&&withinSegment(a,b,c))return true;
+  if(Math.abs(o2)<=eps&&withinSegment(a,b,d))return true;
+  if(Math.abs(o3)<=eps&&withinSegment(c,d,a))return true;
+  if(Math.abs(o4)<=eps&&withinSegment(c,d,b))return true;
+  return false;
+}
+function canAppendPoint(p){
+  const n=points.length,eps=1e-7;
+  if(points.some(q=>Math.abs(q[0]-p[0])<eps&&Math.abs(q[1]-p[1])<eps))return false;
+  if(n<2)return true;
+  // Test the new edge against every existing non-adjacent edge.
+  for(let i=0;i<n-2;i++){
+    if(segmentsCross(points[i],points[i+1],points[n-1],p))return false;
+  }
+  return true;
+}
+function isSimpleClosure(){
+  const n=points.length;
+  if(n<3)return false;
+  let signedArea=0;
+  for(let i=0;i<n;i++){
+    const a=points[i],b=points[(i+1)%n];
+    signedArea+=a[0]*b[1]-b[0]*a[1];
+  }
+  if(Math.abs(signedArea)<1e-10)return false;
+  // The closing edge may touch only the first and last existing edges.
+  for(let i=1;i<n-2;i++){
+    if(segmentsCross(points[n-1],points[0],points[i],points[i+1]))return false;
+  }
+  return true;
 }
 function updateStatus(text){
   statusEl.textContent=text;
@@ -280,8 +325,14 @@ canvas.addEventListener("pointerup",()=>{dragging=false});
 canvas.addEventListener("click",e=>{
   if(!drawMode||finished)return;
   const r=canvas.getBoundingClientRect(),p=geo(e.clientX-r.left,e.clientY-r.top);
-  points.push([Number(p.lon.toFixed(7)),Number(p.lat.toFixed(7))]);
-  updateStatus(points.length+" ponto(s). Conclua após pelo menos 3.");
+  const candidate=[Number(p.lon.toFixed(7)),Number(p.lat.toFixed(7))];
+  if(!canAppendPoint(candidate)){
+    updateStatus("Ponto recusado: cruzamento ou repetição. Siga o contorno em ordem.");
+    schedule();
+    return;
+  }
+  points.push(candidate);
+  updateStatus(points.length+" ponto(s). Clique em Concluir após contornar a área.");
   schedule();
 });
 canvas.addEventListener("wheel",e=>{
@@ -298,8 +349,13 @@ document.getElementById("draw").onclick=()=>{
 };
 document.getElementById("finish").onclick=()=>{
   if(points.length<3)return;
+  if(!isSimpleClosure()){
+    updateStatus("Contorno inválido: o último lado cruza outra linha ou tem área nula. Desfaça pontos.");
+    schedule();
+    return;
+  }
   finished=true;drawMode=false;
-  updateStatus("Polígono concluído ("+points.length+" vértices). Exporte GeoJSON.");schedule();
+  updateStatus("Polígono validado ("+points.length+" vértices). Exporte GeoJSON.");schedule();
 };
 document.getElementById("undo").onclick=()=>{
   if(finished){finished=false;drawMode=true}
@@ -310,7 +366,10 @@ document.getElementById("clear").onclick=()=>{
 };
 document.getElementById("reset").onclick=fit;
 document.getElementById("export").onclick=()=>{
-  if(!finished||points.length<3)return;
+  if(!finished||points.length<3||!isSimpleClosure()){
+    updateStatus("Exportação bloqueada: geometria inválida.");
+    return;
+  }
   const ring=[...points,points[0]];
   const result={type:"FeatureCollection",features:[{type:"Feature",
     properties:{name:"parnaiba_urban_core",status:"candidate_manual_AOI"},
