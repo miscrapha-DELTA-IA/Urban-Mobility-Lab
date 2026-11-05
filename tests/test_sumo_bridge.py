@@ -6,7 +6,7 @@ import networkx as nx
 import pytest
 
 from urban_mobility_lab.sumo_bridge import (
-    compute_bbox, expected_osm_files, inspect_sumo_network, resolve_sumo_home,
+    build_osmget_command, compute_bbox, expected_osm_files, inspect_sumo_network, resolve_sumo_home,
 )
 
 
@@ -114,3 +114,33 @@ def test_doctor_does_not_require_executable_to_run(tmp_path):
     assert result["sumo_detected"] is True
     assert result["sumo_home"] == str(home.resolve())
     assert result["netconvert_version"] in ("unavailable", None)
+
+def test_osmget_command_preserves_negative_longitude_as_argument(tmp_path):
+    import argparse
+    bbox = [-41.8464173, -3.1032097, -41.6627259, -2.8057393]
+    argv = build_osmget_command(
+        "python.exe", tmp_path / "osmGet.py", bbox,
+        4, "parnaiba_full", tmp_path,
+    )
+    # This equals-sign syntax is required for negative comma-separated values.
+    assert argv[2] == "--bbox=-41.8464173,-3.1032097,-41.6627259,-2.8057393"
+    assert "--bbox" not in argv
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bbox")
+    parser.add_argument("--tiles")
+    parser.add_argument("--prefix")
+    parser.add_argument("--output-dir")
+    parser.add_argument("--retries")
+    parser.add_argument("--retry-delay")
+    options = parser.parse_args(argv[2:])
+    assert options.bbox == "-41.8464173,-3.1032097,-41.6627259,-2.8057393"
+    assert options.tiles == "4"
+
+
+def test_osmget_command_rejects_bbox_out_of_order(tmp_path):
+    with pytest.raises(ValueError, match="bbox"):
+        build_osmget_command(
+            "python", tmp_path / "osmGet.py",
+            [-41.6, -3.1, -41.8, -2.8], 4, "parnaiba_full", tmp_path,
+        )
+

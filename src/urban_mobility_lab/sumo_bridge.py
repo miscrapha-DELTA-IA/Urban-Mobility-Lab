@@ -213,6 +213,40 @@ def inspect_sumo_network(path: Path) -> dict:
     }
 
 
+def build_osmget_command(
+    python_executable: str,
+    osm_get_script: Path,
+    bbox: tuple[float, ...] | list[float],
+    tiles: int,
+    prefix: str,
+    output_dir: Path,
+) -> list[str]:
+    """Build SUMO osmGet.py CLI arguments without the negative-bbox argparse trap.
+
+    Passing '--bbox', '-41,...' as two distinct argv strings is parsed as
+    another option. Passing '--bbox=-41,...' works with SUMO 1.28.0.
+    """
+    if len(bbox) != 4:
+        raise ValueError("Expected four bbox coordinates in W,S,E,N order.")
+    west, south, east, north = (float(value) for value in bbox)
+    if not (
+        -180 <= west < east <= 180
+        and -90 <= south < north <= 90
+    ):
+        raise ValueError("Invalid WGS84 bbox: expected west,south,east,north.")
+    expected_osm_files(output_dir, prefix, tiles)  # validate prefix and tile count
+    bbox_text = ",".join(str(value) for value in (west, south, east, north))
+    return [
+        str(python_executable), str(osm_get_script),
+        "--bbox=" + bbox_text,
+        "--tiles", str(tiles),
+        "--prefix", prefix,
+        "--output-dir", str(output_dir.resolve()),
+        "--retries", "2",
+        "--retry-delay", "5",
+    ]
+
+
 def run_checked(argv: list[str], timeout: int = 1800) -> None:
     print("Executing:", " ".join(argv), flush=True)
     try:
@@ -293,13 +327,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("OSM output already exists. Inspect files rather than overwriting a reference snapshot.")
             args.raw_dir.mkdir(parents=True, exist_ok=True)
             get_script = home / "tools" / "osmGet.py"
-            bbox_text = ",".join(str(n) for n in plan["bbox_west_south_east_north"])
-            run_checked([
-                sys.executable, str(get_script),
-                "--bbox", bbox_text, "--tiles", str(args.tiles),
-                "--prefix", args.prefix, "--output-dir", str(args.raw_dir.resolve()),
-                "--retries", "2", "--retry-delay", "5",
-            ], timeout=3600)
+            command = build_osmget_command(
+                sys.executable, get_script,
+                plan["bbox_west_south_east_north"],
+                args.tiles, args.prefix, args.raw_dir,
+            )
+            run_checked(command, timeout=3600)
             if not all(p.is_file() and p.stat().st_size > 0 for p in osm_files):
                 raise ValueError("One or more OSM tiles missing/empty. No successful snapshot recorded.")
             plan["status"] = "OSM_XML_DOWNLOADED_NOT_CONVERTED"

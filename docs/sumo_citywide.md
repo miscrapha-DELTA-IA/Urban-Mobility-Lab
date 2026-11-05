@@ -66,7 +66,7 @@ Salva `reports/parnaiba_sumo_import.json` e mostra bbox, hash e nomes dos quatro
 & $python -m urban_mobility_lab.sumo_bridge download --confirm-download
 ```
 
-O utilitário usa `osmGet.py --bbox oeste,sul,leste,norte --tiles 4` e tenta obter quatro arquivos independentes no diretório `data/raw/osm`. O download pode falhar por limites ou indisponibilidade do Overpass; respeite os limites de uso, não dispare requisições paralelas e não repita em loop. Se o download falhar, os arquivos parciais são preservados para inspeção. Nunca declarar sucesso com tiles vazias ou ausentes.
+O utilitário usa `osmGet.py --bbox=oeste,sul,leste,norte --tiles 4` e tenta obter quatro arquivos independentes no diretório `data/raw/osm`. O download pode falhar por limites ou indisponibilidade do Overpass; respeite os limites de uso, não dispare requisições paralelas e não repita em loop. Se o download falhar, os arquivos parciais são preservados para inspeção. Nunca declarar sucesso com tiles vazias ou ausentes.
 
 ## 4. Converter com netconvert (sem gerar veículos)
 
@@ -100,3 +100,7 @@ A linha acima depende de SUMO_HOME estar apontando para a instalação correta. 
 6. Verificar regras de circulação, semáforos e calibração de campo em MIRANTE-01 antes de qualquer alegação sobre fluxos reais.
 
 Referências: https://eclipse.dev/sumo/docs/Networks/Import/OpenStreetMap.html e https://eclipse.dev/sumo/docs/Tools/Import/OSM.html
+
+### Correção de argumentos negativos (Windows, 2026-11-05)
+
+A primeira tentativa falhou **antes de fazer requisições ao Overpass**. A longitude negativa foi fornecida como argumento separado (`--bbox -41.846...`) e o `argparse` respondeu `argument -b/--bbox: expected one argument`. A versão atual usa a forma `--bbox=-41.8464173,-3.1032097,-41.6627259,-2.8057393`, validada por testes offline. O erro não implica que a base OSM tenha sido baixada nem que a conversão tenha iniciado. Não foi preciso reinstalar o SUMO 1.28.0.
