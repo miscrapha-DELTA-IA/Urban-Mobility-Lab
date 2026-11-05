@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
 viz = ["matplotlib>=3.8,<4.0"]
+regional = ["osmium==4.3.2"]
 
 [project.scripts]
 uml-import-network = "urban_mobility_lab.ingestion:main"
@@ -25,6 +26,7 @@ uml-audit-network = "urban_mobility_lab.audit:main"
 uml-roi = "urban_mobility_lab.roi:main"
 uml-scope = "urban_mobility_lab.scope:main"
 uml-sumo = "urban_mobility_lab.sumo_bridge:main"
+uml-regional-import = "urban_mobility_lab.regional_pbf:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

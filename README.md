@@ -37,7 +37,7 @@ The administrative boundary returned by a geocoder can cover rural and coastal a
 
 1. Define outcomes and a validation protocol: [research/research_protocol.md](research/research_protocol.md).
 2. Reconstruct and quality-check the road graph with [src/urban_mobility_lab/ingestion.py](src/urban_mobility_lab/ingestion.py). The **first full-city study uses the entire existing municipality road graph, without clipping**: see [full-city scope](docs/full_city_scope.md). The [AOI editor](docs/urban_aoi.md) remains available for subareas such as MIRANTE-01.
-3. Prepare a separate SUMO road network using [the verified import pipeline](docs/sumo_citywide.md) (conversion requires local SUMO and OSM XML downloads); then build reproducible synthetic demand scenarios ([scenarios](scenarios/README.md), **not implemented yet**).
+3. Build a separate SUMO road network using [a frozen Geofabrik Nordeste OSM PBF](docs/regional_pbf.md), then generate synthetic demand ([scenarios](scenarios/README.md), **not implemented yet**). The older [Overpass importer](docs/sumo_citywide.md) is retained but was blocked by repeated HTTP 504 on 2026-11-05.
 4. Obtain independent field observations, starting with [MIRANTE-01](stations/MIRANTE-01.md).
 5. Hold out observation periods and compare simulation outputs to reality using the common [data dictionary](research/data_dictionary.md).
 

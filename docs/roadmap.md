@@ -23,7 +23,9 @@
 ## Etapa 4 — simulação
 - [x] Ferramentas de diagnóstico, planejamento, extração e conversão OSM→SUMO implementadas; recuperação de download por faixas e manifesto adicionada
 - [x] SUMO 1.28.0 instalado no Windows e identificado em `C:\Program Files (x86)\SUMO`
-- [ ] Extrair vias OSM XML do domínio municipal em até 8 faixas sequenciais e registrar SHA-256 por faixa (Overpass 504 em tentativa de 4 faixas)
+- [ ] Via Overpass: 8 faixas retornaram HTTP 504 inclusive no primeiro pedido; não insistir em consultas repetidas
+- [x] Pipeline alternativo offline Geofabrik Nordeste PBF datado implementado (requer execução no Windows)
+- [ ] Baixar, verificar MD5 e extrair rede de Parnaíba a partir do PBF 2026-11-03
 - [ ] Executar netconvert e auditar a nova rede SUMO; GraphML não é entrada direta
 - [ ] Comparar conectividade e cobertura da rede SUMO com a rede OSMnx
 - [ ] Definir três cenários de demanda **sintética**, sementes e parâmetros
