@@ -23,6 +23,7 @@ viz = ["matplotlib>=3.8,<4.0"]
 uml-import-network = "urban_mobility_lab.ingestion:main"
 uml-audit-network = "urban_mobility_lab.audit:main"
 uml-roi = "urban_mobility_lab.roi:main"
+uml-scope = "urban_mobility_lab.scope:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

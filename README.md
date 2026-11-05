@@ -36,7 +36,7 @@ The administrative boundary returned by a geocoder can cover rural and coastal a
 ## Scientific workflow
 
 1. Define outcomes and a validation protocol: [research/research_protocol.md](research/research_protocol.md).
-2. Reconstruct and quality-check the network with [src/urban_mobility_lab/ingestion.py](src/urban_mobility_lab/ingestion.py). Delimit an urban study area with the [offline-capable AOI editor](docs/urban_aoi.md) before simulation.
+2. Reconstruct and quality-check the road graph with [src/urban_mobility_lab/ingestion.py](src/urban_mobility_lab/ingestion.py). The **first full-city study uses the entire existing municipality road graph, without clipping**: see [full-city scope](docs/full_city_scope.md). The [AOI editor](docs/urban_aoi.md) remains available for subareas such as MIRANTE-01.
 3. Build reproducible SUMO demand scenarios ([scenarios](scenarios/README.md), **not implemented yet**).
 4. Obtain independent field observations, starting with [MIRANTE-01](stations/MIRANTE-01.md).
 5. Hold out observation periods and compare simulation outputs to reality using the common [data dictionary](research/data_dictionary.md).

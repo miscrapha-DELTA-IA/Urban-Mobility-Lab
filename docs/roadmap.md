@@ -15,12 +15,15 @@
 - [x] Auditoria estrutural executada no Windows: 5 componentes fracamente conectados, maior com 6.579 nós; 0 coordenadas ausentes, 0 comprimentos inválidos
 - [x] Grafo municipal de referência com SHA-256: `05fb88f7a23f2f9865c9c2656f1a69937bf087776e94cc593728390db240b5d6`
 - [x] Ferramenta de criação e recorte manual de AOI desenvolvida
-- [ ] **Desenhar, revisar e aprovar** AOI do núcleo urbano
-- [ ] Executar recorte em Parnaíba e auditar PNG, conectividade e fronteiras
+- [x] Decisão inicial: utilizar toda a rede municipal armazenada, sem recorte (ver `docs/full_city_scope.md`)
+- [ ] Executar relatório de escopo municipal completo no Windows com `python -m urban_mobility_lab.scope`
+- [ ] Confirmar limite municipal cartográfico e a cobertura da rede OSM
+- [ ] Reservar AOIs menores (como MIRANTE-01) para análises complementares
 
 ## Etapa 4 — simulação
 - [ ] Instalar e configurar SUMO
-- [ ] Converter grafo aprovado para SUMO com restrições auditadas
+- [ ] Obter extrato bruto OSM XML correspondente e converter com `netconvert`; GraphML não é entrada direta
+- [ ] Comparar conectividade e cobertura da rede SUMO com a rede OSMnx
 - [ ] Definir três cenários de demanda **sintética**, sementes e parâmetros
 - [ ] Executar e documentar resultados reproduzíveis
 
