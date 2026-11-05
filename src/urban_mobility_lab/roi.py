@@ -54,10 +54,12 @@ def load_aoi_geojson(path: Path) -> Polygon | MultiPolygon:
     if geometry.get("type") not in ("Polygon", "MultiPolygon"):
         raise ValueError("AOI must be Polygon/MultiPolygon, not a point or line.")
     polygon = shape(geometry)
-    if polygon.is_empty or polygon.area <= 0:
-        raise ValueError("AOI polygon is empty or has zero area.")
+    if polygon.is_empty:
+        raise ValueError("AOI polygon is empty.")
     if not polygon.is_valid:
         raise ValueError("Invalid AOI polygon: " + explain_validity(polygon) + ". Redraw the perimeter without crossing edges.")
+    if polygon.area <= 0:
+        raise ValueError("AOI polygon has zero area.")
     min_x, min_y, max_x, max_y = polygon.bounds
     if not (-180 <= min_x < max_x <= 180 and -90 <= min_y < max_y <= 90):
         raise ValueError("AOI must use WGS84 longitude, latitude (EPSG:4326).")
