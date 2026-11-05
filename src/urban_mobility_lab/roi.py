@@ -109,7 +109,7 @@ def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
         # Opposite directed copies are displayed once; crop retains original directions.
         endpoint_pair = tuple(sorted((str(u), str(v))))
         geometry = data.get("geometry")
-        if geometry is not None and hasattr(geometry, "coords"):
+        if geometry is not None and getattr(geometry, "geom_type", None) == "LineString":
             coords = [[round(float(x), 6), round(float(y), 6)]
                       for x, y in geometry.coords]
         else:
@@ -119,8 +119,9 @@ def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
                 [round(float(b["x"]), 6), round(float(b["y"]), 6)],
             ]
         # A pair may carry parallel geometries: keep the geometrically distinct ones.
-        signature = (endpoint_pair, tuple(coords))
-        reverse = (endpoint_pair, tuple(reversed(coords)))
+        frozen_coords = tuple(tuple(point) for point in coords)
+        signature = (endpoint_pair, frozen_coords)
+        reverse = (endpoint_pair, tuple(reversed(frozen_coords)))
         if signature in seen or reverse in seen:
             continue
         seen.add(signature)
