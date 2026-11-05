@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "urban-mobility-lab"
+version = "0.1.0"
+description = "Research tools for reproducible urban mobility digital twins"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "osmnx>=2.0,<3.0",
+    "networkx>=3.2,<4.0",
+    "pyproj>=3.7,<4.0",
+    "shapely>=2.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+viz = ["matplotlib>=3.8,<4.0"]
+regional = ["osmium==4.3.2"]
+
+[project.scripts]
+uml-import-network = "urban_mobility_lab.ingestion:main"
+uml-audit-network = "urban_mobility_lab.audit:main"
+uml-roi = "urban_mobility_lab.roi:main"
+uml-scope = "urban_mobility_lab.scope:main"
+uml-sumo = "urban_mobility_lab.sumo_bridge:main"
+uml-regional-import = "urban_mobility_lab.regional_pbf:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
