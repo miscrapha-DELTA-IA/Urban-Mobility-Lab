@@ -22,7 +22,7 @@ If an earlier Folium installation failed with Windows `[Errno 22] Invalid argume
 
 On the map:
 1. Zoom into the main urban area of Parnaíba using the mouse wheel; drag to pan.
-2. Click **Desenhar polígono**, mark at least three points, then click **Concluir**. Click **Desfazer ponto** to refine it.
+2. Click **Desenhar polígono**, mark at least three points **in geographical perimeter order (clockwise or counterclockwise)**, then click **Concluir**. The editor rejects crossing edges and invalid polygon closure; use **Desfazer ponto** to correct your route. Do not zigzag across the city.
 3. Include Mirante, the major adjacent intersections and the roads connecting them; do not trim the traffic approaches too tightly. The **Conferir no OSM** link opens the matching map location for reference.
 4. Click **Exportar GeoJSON** to download `parnaiba_urban_core.geojson`.
 5. Review the polygon and copy it to `research/aoi/parnaiba_urban_core.geojson`.
@@ -77,3 +77,7 @@ This outputs a **road-network map**, not estimated traffic volumes. Inspect the 
 ## Windows HTTP 403 tile errors (legacy HTML)
 
 The earlier editor requested images directly from the OpenStreetMap public tile server and some Windows/browser environments received HTTP 403 images. The current editor **does not request any tiles**. After pulling the updated branch, regenerate the HTML with `python -m urban_mobility_lab.roi editor` and reopen the regenerated local file. Do not reuse the old tab or HTML. The scientific GraphML is unchanged.
+
+## Quality gate: invalid manual polygon
+
+The first GeoJSON submitted for review on 2026-11-05 was within the original graph envelope but was **self-intersecting**. The AOI was not accepted or used for clipping. Shapely's validator rejects this geometry, and the updated editor now blocks crossed edges and unsafe polygon closure before exporting. The original file should be retained only as an unapproved draft, not automatically repaired with `buffer(0)` or a convex hull because these methods silently change the research boundary. Draw a fresh perimeter that follows the actual intended boundary, and retain the new GeoJSON for review.

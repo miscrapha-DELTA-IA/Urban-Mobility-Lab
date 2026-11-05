@@ -88,3 +88,31 @@ def test_standalone_editor_writes_html_without_folium(tmp_path):
     assert "renderTiles" not in html
     assert "Ocultar mapa online" not in html
 
+
+def test_reject_self_intersecting_aoi(tmp_path):
+    """Bow-tie crosses itself: never accept it as a study area."""
+    bowtie = {"type": "Polygon", "coordinates": [[
+        [-41.76, -2.93], [-41.72, -2.90],
+        [-41.76, -2.90], [-41.72, -2.93],
+        [-41.76, -2.93],
+    ]]}
+    with pytest.raises(ValueError, match="self-intersection|Self-intersection|invalid"):
+        load_aoi_geojson(write_aoi(tmp_path, [bowtie]))
+
+
+def test_editor_blocks_self_intersections_before_geojson(tmp_path):
+    graph = nx.MultiDiGraph()
+    graph.graph["crs"] = "EPSG:4326"
+    graph.add_node(1, x=-41.8, y=-2.95)
+    graph.add_node(2, x=-41.79, y=-2.94)
+    graph.add_edge(1, 2, length=100)
+    output = tmp_path / "editor.html"
+    make_editor(graph, output)
+    html = output.read_text(encoding="utf-8")
+    assert "function segmentsCross(" in html
+    assert "function canAppendPoint(" in html
+    assert "function isSimpleClosure(" in html
+    assert "if(!isSimpleClosure())" in html
+    assert "if(!canAppendPoint(candidate))" in html
+    assert "!finished||points.length<3||!isSimpleClosure()" in html
+
