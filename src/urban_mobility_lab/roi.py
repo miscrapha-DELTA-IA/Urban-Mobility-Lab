@@ -87,56 +87,270 @@ def crop_network(
 
 
 def make_editor(graph: nx.MultiDiGraph, output: Path) -> None:
-    """Generate an HTML polygon editor. Map tiles are loaded by browser."""
-    try:
-        import folium
-        from folium.plugins import Draw, Fullscreen
-    except ImportError as exc:
-        raise RuntimeError("Install UI dependencies: pip install -e '.[ui]'") from exc
+    """Generate a dependency-free interactive AOI editor, usable offline.
 
-    xs = [float(a["x"]) for _, a in graph.nodes(data=True)]
-    ys = [float(a["y"]) for _, a in graph.nodes(data=True)]
+    The native canvas shows OSM road geometry embedded from the saved GraphML.
+    Background OSM tiles are OPTIONAL and require browser internet access.
+    Folium, a local web server, and remote JS libraries are not required.
+    """
+    xs = []
+    ys = []
+    for _, attrs in graph.nodes(data=True):
+        xs.append(float(attrs["x"]))
+        ys.append(float(attrs["y"]))
     if not xs or not ys:
         raise ValueError("Source graph has no valid nodes.")
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
-    m = folium.Map(
-        location=[(min_y + max_y) / 2, (min_x + max_x) / 2],
-        tiles="OpenStreetMap",
-        zoom_start=12,
-        control_scale=True,
-    )
-    m.fit_bounds([[min_y, min_x], [max_y, max_x]])
-    Draw(
-        export=True,
-        filename=AOI_PATH.name,
-        position="topleft",
-        show_geometry_on_click=False,
-        draw_options={
-            "polyline": False,
-            "circle": False,
-            "circlemarker": False,
-            "marker": False,
-            "polygon": {"allowIntersection": False},
-            "rectangle": True,
-        },
-    ).add_to(m)
-    Fullscreen().add_to(m)
-    m.get_root().html.add_child(
-        folium.Element(
-            '<div style="position:fixed;bottom:16px;left:16px;z-index:9999;'
-            'background:#fff;padding:12px;max-width:340px;font:14px sans-serif;'
-            'box-shadow:0 2px 8px #777">'
-            '<strong>Urban Mobility Lab / AOI</strong><br>'
-            'Zoom to Parnaíba urban core. Draw ONE polygon or rectangle '
-            'using the left toolbar. Export GeoJSON in the upper right. '
-            'Include Mirante and major approach roads. Review before SUMO. '
-            'The basemap and drawing scripts require internet access.'
-            '</div>'
-        )
-    )
+    if CRS.from_user_input(graph.graph.get("crs", "EPSG:4326")).to_epsg() != 4326:
+        raise ValueError("Editor expects EPSG:4326 geographic coordinates.")
+
+    roads = []
+    seen = set()
+    for u, v, data in graph.edges(data=True):
+        # Opposite directed copies are displayed once; crop retains original directions.
+        endpoint_pair = tuple(sorted((str(u), str(v))))
+        geometry = data.get("geometry")
+        if geometry is not None and hasattr(geometry, "coords"):
+            coords = [[round(float(x), 6), round(float(y), 6)]
+                      for x, y in geometry.coords]
+        else:
+            a, b = graph.nodes[u], graph.nodes[v]
+            coords = [
+                [round(float(a["x"]), 6), round(float(a["y"]), 6)],
+                [round(float(b["x"]), 6), round(float(b["y"]), 6)],
+            ]
+        # A pair may carry parallel geometries: keep the geometrically distinct ones.
+        signature = (endpoint_pair, tuple(coords))
+        reverse = (endpoint_pair, tuple(reversed(coords)))
+        if signature in seen or reverse in seen:
+            continue
+        seen.add(signature)
+        roads.append(coords)
+
+    bounds = [min(xs), min(ys), max(xs), max(ys)]  # west, south, east, north
+    html = r"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Urban Mobility Lab · Delimitação urbana</title>
+<style>
+  :root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;color:#16243a;background:#eff3f8}
+  header{padding:12px 18px;background:#142a45;color:white}
+  header strong{display:block;font-size:17px}
+  header small{color:#c0d5e8}
+  #toolbar{padding:9px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fff;border-bottom:1px solid #ddd}
+  button,a.action{border:1px solid #ccd5e0;background:#fff;border-radius:7px;padding:8px 11px;color:#183450;font-weight:600;cursor:pointer;text-decoration:none;font-size:13px}
+  button:hover,a.action:hover{background:#edf3fa}
+  button.primary{background:#275f9f;color:white;border-color:#275f9f}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #status{margin-left:auto;font-size:12px;color:#4b5b6f}
+  #stage{height:calc(100vh - 168px);min-height:380px;position:relative}
+  canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:#e8eff7}
+  canvas.drawing{cursor:crosshair}
+  footer{padding:10px 16px;background:#fff;border-top:1px solid #d9e3ed;font-size:12px;color:#465971;line-height:1.5}
+  #hint{position:absolute;top:12px;left:12px;max-width:340px;padding:10px;background:rgba(255,255,255,.93);border-radius:7px;box-shadow:0 2px 9px #0002;font-size:12px;pointer-events:none}
+  @media(max-width:660px){#stage{height:calc(100vh - 240px)}#status{width:100%;margin-left:0}}
+</style>
+</head>
+<body>
+<header><strong>URBAN MOBILITY LAB · PARNAÍBA</strong><small>Editor científico de área de estudo · mapa de ruas do seu GraphML</small></header>
+<div id="toolbar">
+<button id="draw" class="primary">Desenhar polígono</button>
+<button id="finish">Concluir</button>
+<button id="undo">Desfazer ponto</button>
+<button id="clear">Limpar</button>
+<button id="reset">Enquadrar cidade</button>
+<button id="tiles">Ocultar mapa online</button>
+<button id="export" class="primary">Exportar GeoJSON</button>
+<a id="osm" class="action" href="https://www.openstreetmap.org/" target="_blank" rel="noopener">Conferir no OSM</a>
+<span id="status">Iniciando editor…</span>
+</div>
+<div id="stage">
+<canvas id="map" aria-label="Mapa interativo das ruas de Parnaíba. Use os botões para definir um polígono."></canvas>
+<div id="hint"><strong>Instruções:</strong> arraste para mover, use a roda do mouse para ampliar. Clique em <strong>Desenhar polígono</strong> e marque ao menos 3 pontos. Inclua o Mirante e vias de aproximação. Depois: <strong>Concluir → Exportar GeoJSON</strong>.<br>As ruas funcionam sem internet; o mapa de fundo depende de conexão.</div>
+</div>
+<footer><strong>Natureza dos dados:</strong> ruas OSM, sem fluxo de veículos observado. Polígono manual para revisão, não limite urbano oficial. © OpenStreetMap contributors (ODbL); imagens de fundo © OpenStreetMap contributors. Nenhuma medição de tráfego é coletada por este editor.</footer>
+<script>
+"use strict";
+const roads=__ROADS_JSON__;
+const bounds=__BOUNDS_JSON__;
+const canvas=document.getElementById("map");
+const ctx=canvas.getContext("2d");
+const stage=document.getElementById("stage");
+const statusEl=document.getElementById("status");
+const tileCache=new Map();
+let centerLon=(bounds[0]+bounds[2])/2,centerLat=(bounds[1]+bounds[3])/2;
+let zoom=12,drawMode=false,finished=false,points=[],showTiles=true;
+let w=1,h=1,dragging=false,downX=0,downY=0,moved=false,scheduled=false;
+const R=Math.PI/180;
+function project(lon,lat,z){
+  const n=256*Math.pow(2,z), phi=Math.max(-85,Math.min(85,lat))*R;
+  return {x:(lon+180)/360*n,y:(1-Math.asinh(Math.tan(phi))/Math.PI)/2*n};
+}
+function unproject(x,y,z){
+  const n=256*Math.pow(2,z);
+  return {lon:x/n*360-180,lat:Math.atan(Math.sinh(Math.PI*(1-2*y/n)))/R};
+}
+function px(lon,lat){
+  const p=project(lon,lat,zoom),c=project(centerLon,centerLat,zoom);
+  return {x:p.x-c.x+w/2,y:p.y-c.y+h/2};
+}
+function geo(x,y){
+  const c=project(centerLon,centerLat,zoom);
+  return unproject(c.x+x-w/2,c.y+y-h/2,zoom);
+}
+function updateStatus(text){
+  statusEl.textContent=text;
+  canvas.classList.toggle("drawing",drawMode);
+  document.getElementById("export").disabled=!finished;
+  document.getElementById("finish").disabled=!drawMode||points.length<3;
+  document.getElementById("undo").disabled=!points.length;
+}
+function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(render)}}
+function resize(){
+  const r=stage.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+  w=Math.max(1,r.width);h=Math.max(1,r.height);
+  canvas.width=Math.floor(w*dpr);canvas.height=Math.floor(h*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  schedule();
+}
+function renderTiles(){
+  if(!showTiles)return;
+  const c=project(centerLon,centerLat,zoom),n=Math.pow(2,zoom);
+  const minX=Math.floor((c.x-w/2)/256),maxX=Math.floor((c.x+w/2)/256);
+  const minY=Math.floor((c.y-h/2)/256),maxY=Math.floor((c.y+h/2)/256);
+  for(let ty=minY;ty<=maxY;ty++)for(let tx=minX;tx<=maxX;tx++){
+    if(ty<0||ty>=n)continue;
+    const xx=((tx%n)+n)%n,key=zoom+"/"+xx+"/"+ty;
+    let im=tileCache.get(key);
+    if(im===undefined){
+      im=new Image();im.onload=schedule;im.onerror=()=>{im.onerror=null};
+      im.src="https://tile.openstreetmap.org/"+key+".png";
+      tileCache.set(key,im);
+    }
+    if(im.complete&&im.naturalWidth){
+      ctx.drawImage(im,tx*256-c.x+w/2,ty*256-c.y+h/2,256,256);
+    }
+  }
+  if(tileCache.size>160)tileCache.clear();
+}
+function render(){
+  scheduled=false;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle="#eaf0f8";ctx.fillRect(0,0,w,h);
+  renderTiles();
+  ctx.strokeStyle=showTiles?"rgba(17,62,105,0.40)":"rgba(31,87,139,0.65)";
+  ctx.lineWidth=zoom>=14?1.3:.8;
+  ctx.beginPath();
+  for(const road of roads){
+    if(road.length<2)continue;
+    let p=px(road[0][0],road[0][1]);
+    ctx.moveTo(p.x,p.y);
+    for(let i=1;i<road.length;i++){
+      p=px(road[i][0],road[i][1]);ctx.lineTo(p.x,p.y);
+    }
+  }
+  ctx.stroke();
+  if(points.length){
+    ctx.beginPath();
+    let p=px(points[0][0],points[0][1]);ctx.moveTo(p.x,p.y);
+    for(let i=1;i<points.length;i++){
+      p=px(points[i][0],points[i][1]);ctx.lineTo(p.x,p.y);
+    }
+    if(finished)ctx.closePath();
+    ctx.fillStyle="rgba(16,145,116,.21)";
+    if(finished)ctx.fill();
+    ctx.strokeStyle="#008b68";ctx.lineWidth=3;ctx.stroke();
+    for(const [lon,lat] of points){
+      const q=px(lon,lat);ctx.beginPath();ctx.arc(q.x,q.y,4,0,2*Math.PI);
+      ctx.fillStyle="white";ctx.fill();ctx.stroke();
+    }
+  }
+  const link=document.getElementById("osm");
+  link.href="https://www.openstreetmap.org/#map/"+zoom+"/"+centerLat.toFixed(5)+"/"+centerLon.toFixed(5);
+}
+function fit(){
+  const a=project(bounds[0],bounds[3],0),b=project(bounds[2],bounds[1],0);
+  const zz=Math.floor(Math.min(
+    Math.log2(Math.max(1,w-60)/Math.max(1,b.x-a.x)),
+    Math.log2(Math.max(1,h-60)/Math.max(1,b.y-a.y)),16));
+  zoom=Math.max(9,Math.min(16,zz));
+  centerLon=(bounds[0]+bounds[2])/2;centerLat=(bounds[1]+bounds[3])/2;
+  schedule();
+}
+canvas.addEventListener("pointerdown",e=>{
+  downX=e.clientX;downY=e.clientY;moved=false;
+  if(!drawMode){dragging=true;canvas.setPointerCapture(e.pointerId)}
+});
+canvas.addEventListener("pointermove",e=>{
+  if(!dragging)return;
+  const dx=e.clientX-downX,dy=e.clientY-downY;
+  if(Math.abs(dx)+Math.abs(dy)>2)moved=true;
+  const c=project(centerLon,centerLat,zoom);
+  const next=unproject(c.x-dx,c.y-dy,zoom);
+  centerLon=next.lon;centerLat=next.lat;downX=e.clientX;downY=e.clientY;
+  schedule();
+});
+canvas.addEventListener("pointerup",()=>{dragging=false});
+canvas.addEventListener("click",e=>{
+  if(!drawMode||finished)return;
+  const r=canvas.getBoundingClientRect(),p=geo(e.clientX-r.left,e.clientY-r.top);
+  points.push([Number(p.lon.toFixed(7)),Number(p.lat.toFixed(7))]);
+  updateStatus(points.length+" ponto(s). Conclua após pelo menos 3.");
+  schedule();
+});
+canvas.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  const before=geo(x,y);zoom=Math.max(9,Math.min(19,zoom+(e.deltaY<0?1:-1)));
+  const target=project(before.lon,before.lat,zoom);
+  const newCenter=unproject(target.x-x+w/2,target.y-y+h/2,zoom);
+  centerLon=newCenter.lon;centerLat=newCenter.lat;schedule();
+},{passive:false});
+document.getElementById("draw").onclick=()=>{
+  drawMode=true;finished=false;points=[];
+  updateStatus("Desenho ativado: clique para marcar pontos.");schedule();
+};
+document.getElementById("finish").onclick=()=>{
+  if(points.length<3)return;
+  finished=true;drawMode=false;
+  updateStatus("Polígono concluído ("+points.length+" vértices). Exporte GeoJSON.");schedule();
+};
+document.getElementById("undo").onclick=()=>{
+  if(finished){finished=false;drawMode=true}
+  points.pop();updateStatus(points.length+" ponto(s).");schedule();
+};
+document.getElementById("clear").onclick=()=>{
+  points=[];drawMode=false;finished=false;updateStatus("Seleção limpa.");schedule();
+};
+document.getElementById("reset").onclick=fit;
+document.getElementById("tiles").onclick=()=>{
+  showTiles=!showTiles;
+  document.getElementById("tiles").textContent=showTiles?"Ocultar mapa online":"Mostrar mapa online";
+  schedule();
+};
+document.getElementById("export").onclick=()=>{
+  if(!finished||points.length<3)return;
+  const ring=[...points,points[0]];
+  const result={type:"FeatureCollection",features:[{type:"Feature",
+    properties:{name:"parnaiba_urban_core",status:"candidate_manual_AOI"},
+    geometry:{type:"Polygon",coordinates:[ring]}}]};
+  const blob=new Blob([JSON.stringify(result,null,2)],{type:"application/geo+json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="parnaiba_urban_core.geojson";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  updateStatus("GeoJSON exportado. Revisar e guardar em research/aoi.");
+};
+window.addEventListener("resize",resize);
+resize();fit();updateStatus("Mapa pronto. Arraste/zoom; desenhe UMA área.");
+</script></body></html>"""
+    html = html.replace("__ROADS_JSON__", json.dumps(roads, separators=(",", ":")))
+    html = html.replace("__BOUNDS_JSON__", json.dumps(bounds))
     output.parent.mkdir(parents=True, exist_ok=True)
-    m.save(str(output))
+    output.write_text(html, encoding="utf-8")
+
 
 
 def create_crop_report(

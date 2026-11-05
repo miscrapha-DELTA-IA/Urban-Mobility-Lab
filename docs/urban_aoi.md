@@ -10,20 +10,22 @@ From the project root:
 
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
-& $python -m pip install -e ".[dev,viz,ui]"
+& $python -m pip install -e ".[dev,viz]"
 & $python -m pytest -q
 & $python -m urban_mobility_lab.roi editor
 Start-Process "reports\parnaiba_aoi_editor.html"
 ```
 
-The editor is a local HTML page. Its **basemap and drawing scripts require internet access** when you open it. It displays streets, not real-time traffic, and does not automatically save your selected area into the repository.
+The editor is a self-contained local HTML page with the OSM roads embedded from GraphML. It does **not** use Folium or download any JavaScript dependencies. Internet access is optional for the OpenStreetMap background tiles; the road geometry, panning/zooming, selection and GeoJSON export work offline.
+
+If an earlier Folium installation failed with Windows `[Errno 22] Invalid argument`, **do not reinstall it**: simply pull the revised branch and run `python -m urban_mobility_lab.roi editor`. The generated HTML does not require a local server.
 
 On the map:
-1. Zoom into the main urban area of Parnaíba.
-2. Use the left-hand drawing toolbar to draw **one** polygon (or rectangle).
-3. Include Mirante, the major adjacent intersections and the roads connecting them; do not trim the traffic approaches too tightly.
-4. Use **Export** at the upper-right to download `parnaiba_urban_core.geojson`.
-5. Review the shape and move it to `research/aoi/parnaiba_urban_core.geojson`.
+1. Zoom into the main urban area of Parnaíba using the mouse wheel; drag to pan.
+2. Click **Desenhar polígono**, mark at least three points, then click **Concluir**. Click **Desfazer ponto** to refine it.
+3. Include Mirante, the major adjacent intersections and the roads connecting them; do not trim the traffic approaches too tightly. The **Conferir no OSM** link opens the matching map location for reference.
+4. Click **Exportar GeoJSON** to download `parnaiba_urban_core.geojson`.
+5. Review the polygon and copy it to `research/aoi/parnaiba_urban_core.geojson`.
 
 A polygon/rectangle selection does not establish the official built-up-area boundary; it is an **initial research AOI** to be reviewed.
 

@@ -18,7 +18,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
 viz = ["matplotlib>=3.8,<4.0"]
-ui = ["folium>=0.19,<1.0"]
 
 [project.scripts]
 uml-import-network = "urban_mobility_lab.ingestion:main"

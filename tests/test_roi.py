@@ -3,7 +3,7 @@ import json
 import networkx as nx
 import pytest
 from shapely.geometry import box
-from urban_mobility_lab.roi import crop_network, load_aoi_geojson
+from urban_mobility_lab.roi import crop_network, load_aoi_geojson, make_editor
 
 def write_aoi(tmp_path, geometries):
     path = tmp_path / "aoi.geojson"
@@ -67,3 +67,20 @@ def test_reject_wrong_crs():
     graph.add_edge(1, 2)
     with pytest.raises(ValueError, match="EPSG:4326"):
         crop_network(graph, box(-41.81, -2.96, -41.78, -2.94))
+
+def test_standalone_editor_writes_html_without_folium(tmp_path):
+    graph = nx.MultiDiGraph()
+    graph.graph["crs"] = "EPSG:4326"
+    graph.add_node(1, x=-41.8, y=-2.95)
+    graph.add_node(2, x=-41.79, y=-2.94)
+    graph.add_edge(1, 2, length=100)
+    output = tmp_path / "map.html"
+    make_editor(graph, output)
+    html = output.read_text(encoding="utf-8")
+    assert "Urban Mobility Lab" in html
+    assert "const roads=" in html
+    assert "parnaiba_urban_core.geojson" in html
+    assert "leaflet" not in html.lower()
+    assert "folium" not in html.lower()
+    assert "new Blob" in html
+
