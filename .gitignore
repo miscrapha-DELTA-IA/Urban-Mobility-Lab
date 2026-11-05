@@ -17,13 +17,18 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Observational datasets, derived graphs and recordings
+# Local observational data, derived graphs and recordings
 data/raw/**
 data/processed/**
 data/networks/**
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/networks/.gitkeep
+
+# Derived report files, not research documentation
+reports/*.html
+reports/*.png
+reports/*.json
 
 *.mp4
 *.mov

@@ -11,15 +11,19 @@ requires-python = ">=3.11"
 dependencies = [
     "osmnx>=2.0,<3.0",
     "networkx>=3.2,<4.0",
+    "pyproj>=3.7,<4.0",
+    "shapely>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
 viz = ["matplotlib>=3.8,<4.0"]
+ui = ["folium>=0.19,<1.0"]
 
 [project.scripts]
 uml-import-network = "urban_mobility_lab.ingestion:main"
 uml-audit-network = "urban_mobility_lab.audit:main"
+uml-roi = "urban_mobility_lab.roi:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
